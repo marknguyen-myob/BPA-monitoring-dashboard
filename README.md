@@ -2,6 +2,8 @@
 
 > A visual dashboard for analyzing event logs from the BPA Codeless Platform
 
+![Dashboard Screenshot](image.png)
+
 ---
 
 ## Quick Start
@@ -11,7 +13,7 @@
    open ./bpa_dashboard.html
    ```
 
-2. Click or drag-and-drop your BPA event log file into the upload area
+2. Click or drag-and-drop your BPA event log file into the upload area (where to get the file: export in event logs of BPA application)
 
 3. The dashboard will automatically parse and visualize your data
 
