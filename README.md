@@ -10,7 +10,7 @@
 
 1. Open the dashboard by running this:
    ```bash
-   open ./bpa_dashboard.html
+   open ./index.html
    ```
 
 2. Click or drag-and-drop your BPA event log file into the upload area (where to get the file: export in event logs of BPA application)
