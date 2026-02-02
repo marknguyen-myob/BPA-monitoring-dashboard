@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPA Event Log Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e4e4e4;
+            padding: 20px;
+        }
+        
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .dashboard-header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .dashboard-header p {
+            color: #888;
+            font-size: 1rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-card h3 {
+            color: #888;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #00d9ff;
+        }
+        
+        .stat-card .subvalue {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .stat-card.warning .value { color: #ffaa00; }
+        .stat-card.error .value { color: #ff4444; }
+        .stat-card.success .value { color: #00ff88; }
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .chart-card h2 {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+        
+        .chart-wrapper.tall {
+            height: 400px;
+        }
+        
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        @media (max-width: 900px) {
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .file-input-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px dashed rgba(255,255,255,0.2);
+            text-align: center;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .file-input-container:hover {
+            border-color: #00d9ff;
+            background: rgba(0,217,255,0.05);
+        }
+        
+        .file-input-container input {
+            display: none;
+        }
+        
+        .file-input-container p {
+            color: #888;
+        }
+        
+        .file-input-container .icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .peak-analysis {
+            background: rgba(255,170,0,0.1);
+            border: 1px solid rgba(255,170,0,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .peak-analysis h3 {
+            color: #ffaa00;
+            margin-bottom: 15px;
+        }
+        
+        .peak-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .peak-item:last-child {
+            border-bottom: none;
+        }
+        
+        .peak-item .time {
+            color: #00d9ff;
+            font-weight: 600;
+        }
+        
+        .peak-item .count {
+            color: #ffaa00;
+        }
+        
+        .comparison-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        
+        .comparison-badge.high {
+            background: rgba(255,68,68,0.2);
+            color: #ff4444;
+        }
+        
+        .comparison-badge.normal {
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+        }
+        
+        .legend-custom {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        
+        .time-filter {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .time-filter button {
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: transparent;
+            color: #888;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .time-filter button:hover,
+        .time-filter button.active {
+            background: #00d9ff;
+            color: #1a1a2e;
+            border-color: #00d9ff;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #888;
+        }
+        
+        .loading .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d9ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        th {
+            color: #888;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        
+        td {
+            color: #e4e4e4;
+        }
+        
+        .error-row {
+            color: #ff4444;
+        }
+        
+        .warning-row {
+            color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>BPA Event Log Dashboard</h1>
+        <p>Task Execution Analysis & Peak Period Comparison</p>
+    </div>
+    
+    <div id="fileInputSection" class="file-input-container">
+        <div class="icon">📊</div>
+        <p><strong>Click to upload bpa_event log file</strong></p>
+        <p style="font-size: 0.85rem; margin-top: 5px;">or drag and drop the file here</p>
+        <input type="file" id="fileInput" accept=".txt,.csv,.log,*">
+    </div>
+    
+    <div id="loadingSection" class="loading hidden">
+        <div class="spinner"></div>
+        <p>Processing log file...</p>
+    </div>
+    
+    <div id="dashboardContent" class="hidden">
+        <!-- Summary Stats -->
+        <div class="stats-grid">
+            <div class="stat-card success">
+                <h3>Total Events</h3>
+                <div class="value" id="totalEvents">0</div>
+                <div class="subvalue" id="timeRange">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Tasks Submitted</h3>
+                <div class="value" id="tasksSubmitted">0</div>
+                <div class="subvalue" id="avgPerMinute">-</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Server Busy Warnings</h3>
+                <div class="value" id="serverBusyCount">0</div>
+                <div class="subvalue" id="busyPercentage">-</div>
+            </div>
+            <div class="stat-card error">
+                <h3>Errors</h3>
+                <div class="value" id="errorCount">0</div>
+                <div class="subvalue" id="errorRate">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Unique Tasks</h3>
+                <div class="value" id="uniqueTasks">0</div>
+                <div class="subvalue">Different task types</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Peak Load</h3>
+                <div class="value" id="peakLoad">0</div>
+                <div class="subvalue" id="peakTime">-</div>
+            </div>
+        </div>
+        
+        <!-- Main Timeline Chart -->
+        <div class="chart-card">
+            <h2>📈 Events Over Time (Per Minute)</h2>
+            <div class="time-filter">
+                <button class="active" data-interval="minute">Per Minute</button>
+                <button data-interval="5min">5 Min Intervals</button>
+                <button data-interval="10min">10 Min Intervals</button>
+            </div>
+            <div class="chart-wrapper tall">
+                <canvas id="timelineChart"></canvas>
+            </div>
+            <div class="peak-analysis" id="peakAnalysis">
+                <h3>🔥 Peak Period Analysis</h3>
+                <div id="peakDetails"></div>
+            </div>
+        </div>
+        
+        <!-- Two Column Charts -->
+        <div class="two-col">
+            <div class="chart-card">
+                <h2>📊 Event Types Distribution</h2>
+                <div class="chart-wrapper">
+                    <canvas id="eventTypeChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h2>📋 Category Breakdown</h2>
+                <div class="chart-wrapper">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Task Activity Heatmap -->
+        <div class="chart-card">
+            <h2>🔥 Task Submission Rate vs Server Busy Warnings</h2>
+            <div class="chart-wrapper tall">
+                <canvas id="busyComparisonChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Top Tasks -->
+        <div class="chart-card">
+            <h2>🏆 Most Active Tasks</h2>
+            <div class="chart-wrapper">
+                <canvas id="topTasksChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Period Comparison -->
+        <div class="chart-card">
+            <h2>⚖️ Peak vs Normal Period Comparison</h2>
+            <div class="chart-wrapper">
+                <canvas id="comparisonChart"></canvas>
+            </div>
+            <div id="comparisonStats" style="margin-top: 20px;"></div>
+        </div>
+        
+        <!-- Recent Errors Table -->
+        <div class="chart-card">
+            <h2>⚠️ Errors & Warnings Summary</h2>
+            <table id="errorsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody id="errorsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let parsedData = [];
+        let charts = {};
+        let currentInterval = 'minute';
+        
+        // File input handling
+        const fileInput = document.getElementById('fileInput');
+        const fileInputSection = document.getElementById('fileInputSection');
+        const loadingSection = document.getElementById('loadingSection');
+        const dashboardContent = document.getElementById('dashboardContent');
+        
+        fileInputSection.addEventListener('click', () => fileInput.click());
+        fileInputSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileInputSection.style.borderColor = '#00d9ff';
+        });
+        fileInputSection.addEventListener('dragleave', () => {
+            fileInputSection.style.borderColor = 'rgba(255,255,255,0.2)';
+        });
+        fileInputSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFile(file);
+        });
+        
+        function processFile(file) {
+            fileInputSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                parseLogFile(content);
+                setTimeout(() => {
+                    loadingSection.classList.add('hidden');
+                    dashboardContent.classList.remove('hidden');
+                    renderDashboard();
+                }, 500);
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseLogFile(content) {
+            const lines = content.split('\n');
+            parsedData = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                // Parse CSV-like format with potential commas in quoted fields
+                const parts = parseCSVLine(line);
+                if (parts.length >= 9) {
+                    const timeStr = parts[8];
+                    const timestamp = parseTimestamp(timeStr);
+                    
+                    if (timestamp) {
+                        parsedData.push({
+                            id: parts[0],
+                            taskId: parts[1],
+                            taskInstanceId: parts[2],
+                            source: parts[3],
+                            category: parts[4],
+                            type: parts[5],
+                            description: parts[6],
+                            errorCode: parts[7],
+                            time: timestamp,
+                            timeStr: timeStr
+                        });
+                    }
+                }
+            }
+            
+            // Sort by time
+            parsedData.sort((a, b) => a.time - b.time);
+        }
+        
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+        
+        function parseTimestamp(timeStr) {
+            // Format: MM/DD/YYYY H:MM:SS AM/PM
+            const match = timeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)/i);
+            if (match) {
+                let [, month, day, year, hours, minutes, seconds, ampm] = match;
+                hours = parseInt(hours);
+                if (ampm.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+                if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                
+                return new Date(year, month - 1, day, hours, parseInt(minutes), parseInt(seconds));
+            }
+            return null;
+        }
+        
+        function renderDashboard() {
+            if (parsedData.length === 0) return;
+            
+            updateStats();
+            renderTimelineChart();
+            renderEventTypeChart();
+            renderCategoryChart();
+            renderBusyComparisonChart();
+            renderTopTasksChart();
+            renderComparisonChart();
+            renderErrorsTable();
+            
+            // Set up interval buttons
+            document.querySelectorAll('.time-filter button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.time-filter button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentInterval = btn.dataset.interval;
+                    renderTimelineChart();
+                    renderBusyComparisonChart();
+                });
+            });
+        }
+        
+        function updateStats() {
+            const totalEvents = parsedData.length;
+            const minTime = parsedData[0].time;
+            const maxTime = parsedData[parsedData.length - 1].time;
+            const durationMinutes = (maxTime - minTime) / 60000;
+            
+            const tasksSubmitted = parsedData.filter(e => e.description.includes('submitted for running')).length;
+            const serverBusy = parsedData.filter(e => e.description.includes('Server is busy')).length;
+            const errors = parsedData.filter(e => e.type === 'Error').length;
+            const uniqueTasks = new Set(parsedData.filter(e => e.taskId).map(e => e.taskId)).size;
+            
+            // Calculate peak
+            const perMinute = getAggregatedData('minute');
+            let peakCount = 0;
+            let peakTime = '';
+            Object.entries(perMinute).forEach(([time, data]) => {
+                if (data.total > peakCount) {
+                    peakCount = data.total;
+                    peakTime = time;
+                }
+            });
+            
+            document.getElementById('totalEvents').textContent = totalEvents.toLocaleString();
+            document.getElementById('timeRange').textContent = `${formatTime(minTime)} - ${formatTime(maxTime)}`;
+            document.getElementById('tasksSubmitted').textContent = tasksSubmitted.toLocaleString();
+            document.getElementById('avgPerMinute').textContent = `${(tasksSubmitted / durationMinutes).toFixed(1)} tasks/min`;
+            document.getElementById('serverBusyCount').textContent = serverBusy.toLocaleString();
+            document.getElementById('busyPercentage').textContent = `${((serverBusy / totalEvents) * 100).toFixed(1)}% of events`;
+            document.getElementById('errorCount').textContent = errors.toLocaleString();
+            document.getElementById('errorRate').textContent = `${((errors / totalEvents) * 100).toFixed(2)}% error rate`;
+            document.getElementById('uniqueTasks').textContent = uniqueTasks.toLocaleString();
+            document.getElementById('peakLoad').textContent = peakCount.toLocaleString();
+            document.getElementById('peakTime').textContent = `at ${peakTime}`;
+        }
+        
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function getAggregatedData(interval) {
+            const aggregated = {};
+            
+            parsedData.forEach(event => {
+                let key;
+                const d = event.time;
+                
+                if (interval === 'minute') {
+                    key = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+                } else if (interval === '5min') {
+                    const min = Math.floor(d.getMinutes() / 5) * 5;
+                    key = `${d.getHours().toString().padStart(2,'0')}:${min.toString().padStart(2,'0')}`;
+                } else if (interval === '10min') {
+                    const min = Math.floor(d.getMinutes() / 10) * 10;
+                    key = `${d.getHours().toString().padStart(2,'0')}:${min.toString().padStart(2,'0')}`;
+                }
+                
+                if (!aggregated[key]) {
+                    aggregated[key] = { total: 0, submitted: 0, busy: 0, errors: 0, started: 0, finished: 0 };
+                }
+                
+                aggregated[key].total++;
+                if (event.description.includes('submitted for running')) aggregated[key].submitted++;
+                if (event.description.includes('Server is busy')) aggregated[key].busy++;
+                if (event.type === 'Error') aggregated[key].errors++;
+                if (event.description.includes('Task run started')) aggregated[key].started++;
+                if (event.description.includes('Task run finished')) aggregated[key].finished++;
+            });
+            
+            return aggregated;
+        }
+        
+        function renderTimelineChart() {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            const data = getAggregatedData(currentInterval);
+            const labels = Object.keys(data).sort();
+            
+            // Calculate average for peak detection
+            const totals = labels.map(l => data[l].total);
+            const avg = totals.reduce((a,b) => a+b, 0) / totals.length;
+            const threshold = avg * 1.5;
+            
+            // Colors based on peak detection
+            const backgroundColors = labels.map(l => 
+                data[l].total > threshold ? 'rgba(255, 170, 0, 0.8)' : 'rgba(0, 217, 255, 0.6)'
+            );
+            
+            if (charts.timeline) charts.timeline.destroy();
+            
+            charts.timeline = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Events',
+                            data: labels.map(l => data[l].total),
+                            backgroundColor: backgroundColors,
+                            borderColor: labels.map(l => 
+                                data[l].total > threshold ? '#ffaa00' : '#00d9ff'
+                            ),
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Tasks Started',
+                            data: labels.map(l => data[l].started),
+                            backgroundColor: 'rgba(0, 255, 136, 0.6)',
+                            borderColor: '#00ff88',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Server Busy',
+                            data: labels.map(l => data[l].busy),
+                            backgroundColor: 'rgba(255, 68, 68, 0.6)',
+                            borderColor: '#ff4444',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#888' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function(context) {
+                                    const label = context[0].label;
+                                    const d = data[label];
+                                    return `\nSubmitted: ${d.submitted}\nFinished: ${d.finished}\nErrors: ${d.errors}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+            
+            // Update peak analysis
+            const peakPeriods = labels.filter(l => data[l].total > threshold);
+            const normalPeriods = labels.filter(l => data[l].total <= threshold);
+            
+            const peakAvg = peakPeriods.length > 0 
+                ? peakPeriods.reduce((a, l) => a + data[l].total, 0) / peakPeriods.length 
+                : 0;
+            const normalAvg = normalPeriods.length > 0 
+                ? normalPeriods.reduce((a, l) => a + data[l].total, 0) / normalPeriods.length 
+                : 0;
+            
+            document.getElementById('peakDetails').innerHTML = `
+                <div class="peak-item">
+                    <span>Peak Periods Detected:</span>
+                    <span class="count">${peakPeriods.length} intervals (>${threshold.toFixed(0)} events)</span>
+                </div>
+                <div class="peak-item">
+                    <span>Peak Period Avg Events:</span>
+                    <span class="count">${peakAvg.toFixed(1)} events/interval</span>
+                </div>
+                <div class="peak-item">
+                    <span>Normal Period Avg Events:</span>
+                    <span class="time">${normalAvg.toFixed(1)} events/interval</span>
+                </div>
+                <div class="peak-item">
+                    <span>Peak vs Normal Ratio:</span>
+                    <span class="count">${(peakAvg / normalAvg).toFixed(2)}x higher during peaks</span>
+                </div>
+                <div class="peak-item">
+                    <span>Peak Times:</span>
+                    <span class="time">${peakPeriods.slice(0, 5).join(', ')}${peakPeriods.length > 5 ? '...' : ''}</span>
+                </div>
+            `;
+        }
+        
+        function renderEventTypeChart() {
+            const ctx = document.getElementById('eventTypeChart').getContext('2d');
+            
+            const typeCounts = {};
+            parsedData.forEach(e => {
+                typeCounts[e.type] = (typeCounts[e.type] || 0) + 1;
+            });
+            
+            const colors = {
+                'Information': '#00d9ff',
+                'Warning': '#ffaa00',
+                'Error': '#ff4444'
+            };
+            
+            if (charts.eventType) charts.eventType.destroy();
+            
+            charts.eventType = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(typeCounts),
+                    datasets: [{
+                        data: Object.values(typeCounts),
+                        backgroundColor: Object.keys(typeCounts).map(k => colors[k] || '#888'),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#888', padding: 20 }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderCategoryChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            const catCounts = {};
+            parsedData.forEach(e => {
+                catCounts[e.category] = (catCounts[e.category] || 0) + 1;
+            });
+            
+            // Sort by count
+            const sorted = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
+            
+            if (charts.category) charts.category.destroy();
+            
+            charts.category = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: sorted.map(s => s[0]),
+                    datasets: [{
+                        data: sorted.map(s => s[1]),
+                        backgroundColor: ['#00d9ff', '#00ff88', '#ffaa00', '#ff4444', '#9966ff'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#888', padding: 20 }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderBusyComparisonChart() {
+            const ctx = document.getElementById('busyComparisonChart').getContext('2d');
+            const data = getAggregatedData(currentInterval);
+            const labels = Object.keys(data).sort();
+            
+            if (charts.busyComparison) charts.busyComparison.destroy();
+            
+            charts.busyComparison = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Tasks Submitted',
+                            data: labels.map(l => data[l].submitted),
+                            borderColor: '#00d9ff',
+                            backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Server Busy Warnings',
+                            data: labels.map(l => data[l].busy),
+                            borderColor: '#ff4444',
+                            backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Errors',
+                            data: labels.map(l => data[l].errors),
+                            borderColor: '#ffaa00',
+                            backgroundColor: 'rgba(255, 170, 0, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#888' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderTopTasksChart() {
+            const ctx = document.getElementById('topTasksChart').getContext('2d');
+            
+            const taskCounts = {};
+            parsedData.forEach(e => {
+                if (e.source && e.source.includes('[ID:')) {
+                    const match = e.source.match(/^(.+?)\s*\[ID:/);
+                    if (match) {
+                        const taskName = match[1].trim();
+                        taskCounts[taskName] = (taskCounts[taskName] || 0) + 1;
+                    }
+                }
+            });
+            
+            const sorted = Object.entries(taskCounts)
+                .sort((a,b) => b[1] - a[1])
+                .slice(0, 15);
+            
+            if (charts.topTasks) charts.topTasks.destroy();
+            
+            charts.topTasks = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(s => s[0].length > 25 ? s[0].substring(0, 25) + '...' : s[0]),
+                    datasets: [{
+                        label: 'Event Count',
+                        data: sorted.map(s => s[1]),
+                        backgroundColor: 'rgba(0, 217, 255, 0.6)',
+                        borderColor: '#00d9ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#888', font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderComparisonChart() {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            const data = getAggregatedData('minute');
+            const labels = Object.keys(data).sort();
+            
+            // Calculate threshold
+            const totals = labels.map(l => data[l].total);
+            const avg = totals.reduce((a,b) => a+b, 0) / totals.length;
+            const threshold = avg * 1.5;
+            
+            // Separate peak and normal
+            const peakPeriods = labels.filter(l => data[l].total > threshold);
+            const normalPeriods = labels.filter(l => data[l].total <= threshold);
+            
+            const peakMetrics = {
+                avgEvents: peakPeriods.length > 0 ? peakPeriods.reduce((a, l) => a + data[l].total, 0) / peakPeriods.length : 0,
+                avgSubmitted: peakPeriods.length > 0 ? peakPeriods.reduce((a, l) => a + data[l].submitted, 0) / peakPeriods.length : 0,
+                avgBusy: peakPeriods.length > 0 ? peakPeriods.reduce((a, l) => a + data[l].busy, 0) / peakPeriods.length : 0,
+                avgErrors: peakPeriods.length > 0 ? peakPeriods.reduce((a, l) => a + data[l].errors, 0) / peakPeriods.length : 0
+            };
+            
+            const normalMetrics = {
+                avgEvents: normalPeriods.length > 0 ? normalPeriods.reduce((a, l) => a + data[l].total, 0) / normalPeriods.length : 0,
+                avgSubmitted: normalPeriods.length > 0 ? normalPeriods.reduce((a, l) => a + data[l].submitted, 0) / normalPeriods.length : 0,
+                avgBusy: normalPeriods.length > 0 ? normalPeriods.reduce((a, l) => a + data[l].busy, 0) / normalPeriods.length : 0,
+                avgErrors: normalPeriods.length > 0 ? normalPeriods.reduce((a, l) => a + data[l].errors, 0) / normalPeriods.length : 0
+            };
+            
+            if (charts.comparison) charts.comparison.destroy();
+            
+            charts.comparison = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Avg Events', 'Avg Submitted', 'Avg Server Busy', 'Avg Errors'],
+                    datasets: [
+                        {
+                            label: `Peak Periods (${peakPeriods.length} intervals)`,
+                            data: [peakMetrics.avgEvents, peakMetrics.avgSubmitted, peakMetrics.avgBusy, peakMetrics.avgErrors],
+                            backgroundColor: 'rgba(255, 170, 0, 0.7)',
+                            borderColor: '#ffaa00',
+                            borderWidth: 1
+                        },
+                        {
+                            label: `Normal Periods (${normalPeriods.length} intervals)`,
+                            data: [normalMetrics.avgEvents, normalMetrics.avgSubmitted, normalMetrics.avgBusy, normalMetrics.avgErrors],
+                            backgroundColor: 'rgba(0, 217, 255, 0.7)',
+                            borderColor: '#00d9ff',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#888' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+            
+            // Add comparison stats
+            document.getElementById('comparisonStats').innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div style="background: rgba(255,170,0,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #ffaa00;">
+                        <div style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Peak Periods</div>
+                        <div style="color: #ffaa00; font-size: 1.5rem; font-weight: bold;">${peakPeriods.length} intervals</div>
+                        <div style="color: #666; font-size: 0.85rem;">${peakPeriods.slice(0,3).join(', ')}${peakPeriods.length > 3 ? '...' : ''}</div>
+                    </div>
+                    <div style="background: rgba(0,217,255,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #00d9ff;">
+                        <div style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Normal Periods</div>
+                        <div style="color: #00d9ff; font-size: 1.5rem; font-weight: bold;">${normalPeriods.length} intervals</div>
+                        <div style="color: #666; font-size: 0.85rem;">Baseline activity level</div>
+                    </div>
+                    <div style="background: rgba(255,68,68,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #ff4444;">
+                        <div style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Server Busy Increase</div>
+                        <div style="color: #ff4444; font-size: 1.5rem; font-weight: bold;">${normalMetrics.avgBusy > 0 ? ((peakMetrics.avgBusy / normalMetrics.avgBusy) * 100 - 100).toFixed(0) : peakMetrics.avgBusy.toFixed(0)}%</div>
+                        <div style="color: #666; font-size: 0.85rem;">During peak vs normal</div>
+                    </div>
+                    <div style="background: rgba(0,255,136,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #00ff88;">
+                        <div style="color: #888; font-size: 0.8rem; text-transform: uppercase;">Load Multiplier</div>
+                        <div style="color: #00ff88; font-size: 1.5rem; font-weight: bold;">${normalMetrics.avgEvents > 0 ? (peakMetrics.avgEvents / normalMetrics.avgEvents).toFixed(2) : '-'}x</div>
+                        <div style="color: #666; font-size: 0.85rem;">Peak vs normal activity</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderErrorsTable() {
+            const errorsAndWarnings = parsedData
+                .filter(e => e.type === 'Error' || e.type === 'Warning')
+                .slice(0, 50);
+            
+            const tbody = document.getElementById('errorsTableBody');
+            tbody.innerHTML = errorsAndWarnings.map(e => `
+                <tr class="${e.type === 'Error' ? 'error-row' : 'warning-row'}">
+                    <td>${e.timeStr}</td>
+                    <td>${e.type}</td>
+                    <td>${e.source}</td>
+                    <td>${e.description}</td>
+                </tr>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
